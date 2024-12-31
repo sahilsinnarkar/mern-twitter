@@ -7,16 +7,32 @@ export const createPost = async (req, res) => {
     try {
         const { text } = req.body;
         let { img } = req.body;
-        const userId = req.user._id;
+        const userId = req.user._id.toString();
 
         const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ error: "User not found" });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
 
-        if (!text && !img) return res.status(400).json({ error: "Please provide text or image" });
+        if (!text && !img) {
+            return res.status(400).json({ error: "Post must have text or image" });
+        }
 
         if (img) {
-            const uploadedResponse = await cloudinary.uploader.upload(img);
-            img = uploadedResponse.secure_url;
+            // Validate image format
+            if (img.startsWith("data:image/")) {
+                try {
+                    const uploadedResponse = await cloudinary.uploader.upload(img, {
+                        folder: "posts", // Optional: Organize images in Cloudinary
+                    });
+                    img = uploadedResponse.secure_url;
+                } catch (error) {
+                    console.error("Cloudinary upload failed:", error);
+                    return res.status(500).json({ error: "Image upload failed" });
+                }
+            } else {
+                return res.status(400).json({ error: "Invalid image format" });
+            }
         }
 
         const newPost = new Post({
@@ -26,12 +42,14 @@ export const createPost = async (req, res) => {
         });
 
         await newPost.save();
-        res.status(200).json(newPost);
+        res.status(201).json(newPost);
     } catch (error) {
-        console.log(`Error in createPost controller: ${error.message}`);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error("Error in createPost controller:", error);
+        res.status(500).json({ error: "Internal server error" });
     }
-}
+};
+
+
 
 export const deletePost = async (req, res) => {
     try {
